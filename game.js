@@ -28,7 +28,6 @@ let gameOver = false;
 let distance = 0;
 const finishLine = 2000;
 
-// Joystick variables
 let joystick = {
     active: false,
     x: 0,
@@ -73,12 +72,11 @@ function drawFinishLine() {
 
 function drawJoystick() {
     if (joystick.active) {
-        // Base circle
+        console.log(`Joystick at: ${joystick.startX}, ${joystick.startY}`); // Debug position
         ctx.beginPath();
         ctx.arc(joystick.startX, joystick.startY, 50, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
         ctx.fill();
-        // Stick
         ctx.beginPath();
         ctx.arc(joystick.x, joystick.y, 20, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -126,12 +124,11 @@ function update() {
         ws.send(JSON.stringify({ playerId, x: plane.x, y: plane.y }));
     }
 
-    // Joystick control
     if (joystick.active) {
         const angle = Math.atan2(joystick.dy, joystick.dx);
         const magnitude = Math.min(Math.sqrt(joystick.dx * joystick.dx + joystick.dy * joystick.dy), 50);
-        plane.velocity = -Math.sin(angle) * (magnitude / 10); // Up/down
-        plane.boostSpeed = Math.cos(angle) * (magnitude / 25); // Forward
+        plane.velocity = -Math.sin(angle) * (magnitude / 10);
+        plane.boostSpeed = Math.cos(angle) * (magnitude / 25);
     }
 }
 
@@ -153,7 +150,6 @@ function gameLoop() {
     if (!gameOver) requestAnimationFrame(gameLoop);
 }
 
-// Keyboard controls
 document.addEventListener('keydown', (e) => {
     if (playerId === '1') {
         if (e.key === 'ArrowUp') plane.velocity = -3;
@@ -166,7 +162,43 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// Touch controls (joystick)
+// Touch controls
 canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
     const touch = e.touches[0];
+    joystick.active = true;
+    joystick.startX = touch.clientX - canvas.offsetLeft;
+    joystick.startY = touch.clientY - canvas.offsetTop;
+    joystick.x = joystick.startX;
+    joystick.y = joystick.startY;
+    console.log('Touch started:', joystick.startX, joystick.startY); // Debug
+});
+
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    joystick.x = touch.clientX - canvas.offsetLeft;
+    joystick.y = touch.clientY - canvas.offsetTop;
+    joystick.dx = joystick.x - joystick.startX;
+    joystick.dy = joystick.y - joystick.startY;
+    const distance = Math.sqrt(joystick.dx * joystick.dx + joystick.dy * joystick.dy);
+    if (distance > 50) {
+        const angle = Math.atan2(joystick.dy, joystick.dx);
+        joystick.x = joystick.startX + Math.cos(angle) * 50;
+        joystick.y = joystick.startY + Math.sin(angle) * 50;
+        joystick.dx = joystick.x - joystick.startX;
+        joystick.dy = joystick.y - joystick.startY;
+    }
+    console.log('Touch moved:', joystick.x, joystick.y); // Debug
+});
+
+canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    joystick.active = false;
+    plane.velocity = 0;
+    plane.boostSpeed = 0;
+    console.log('Touch ended'); // Debug
+});
+
+spawnObstacle();
+gameLoop();
