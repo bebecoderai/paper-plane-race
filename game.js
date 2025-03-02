@@ -25,11 +25,11 @@ let plane = {
     height: 10,
     boostSpeed: 0,
     velocity: 0,
-    gravity: 0.1, // Reduced from 0.15
+    gravity: 0.1,
     color: '#' + Math.floor(Math.random() * 16777215).toString(16)
 };
 let obstacles = [];
-let scrollSpeed = 1.5; // Reduced from 3
+let scrollSpeed = 1.5;
 let distance = 0;
 const finishLine = 2000;
 
@@ -47,12 +47,11 @@ let particles = [];
 let rainDrops = [];
 
 function spawnObstacle() {
-    // Random middle cloud
-    obstacles.push({ x: canvas.width, y: Math.random() * (canvas.height - 50 - 50) + 50, width: 40, height: 30, hit: false, raining: false });
-    // Top edge cloud
-    obstacles.push({ x: canvas.width, y: 20, width: 40, height: 30, hit: false, raining: false });
-    // Bottom edge cloud
-    obstacles.push({ x: canvas.width, y: canvas.height - 50, width: 40, height: 30, hit: false, raining: false });
+    // Staggered spawning for continuous challenge
+    const spacing = 150; // Distance between cloud sets
+    obstacles.push({ x: canvas.width, y: 20, width: 40, height: 30, hit: false, raining: false }); // Top
+    obstacles.push({ x: canvas.width + spacing * 0.5, y: Math.random() * (canvas.height - 100 - 50) + 50, width: 40, height: 30, hit: false, raining: false }); // Middle staggered
+    obstacles.push({ x: canvas.width + spacing, y: canvas.height - 50, width: 40, height: 30, hit: false, raining: false }); // Bottom staggered
 }
 
 function drawPlane(planeData, isGhost = false) {
@@ -81,7 +80,7 @@ function drawObstacles() {
                     life: 20
                 });
             }
-            obstacle.raining = false; // One burst of rain
+            obstacle.raining = false;
         }
     });
 }
@@ -183,7 +182,7 @@ function update() {
         ) {
             if (!obstacle.hit) {
                 obstacle.hit = true;
-                obstacle.raining = true; // Trigger rain
+                obstacle.raining = true;
                 plane.x = 50;
                 plane.y = 200;
                 plane.velocity = 0;
@@ -197,7 +196,7 @@ function update() {
         ws.send(JSON.stringify({ type: 'finish', playerName }));
     }
 
-    if (distance % 40 === 0) spawnObstacle(); // Slightly less frequent than 30
+    if (distance % 20 === 0) spawnObstacle(); // More frequent spawning
     if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'position', playerName, x: plane.x, y: plane.y }));
     }
@@ -233,13 +232,9 @@ function gameLoop() {
 }
 
 document.addEventListener('keydown', (e) => {
-    // Laptop arrow keys (and WASD for flexibility)
-    if (e.key === 'ArrowUp') plane.velocity = -3;
-    if (e.key === 'ArrowDown') plane.velocity = 3;
-    if (e.key === 'ArrowRight') plane.boostSpeed = 2;
-    if (e.key === 'w') plane.velocity = -3;
-    if (e.key === 's') plane.velocity = 3;
-    if (e.key === 'd') plane.boostSpeed = 2;
+    if (e.key === 'ArrowUp' || e.key === 'w') plane.velocity = -3;
+    if (e.key === 'ArrowDown' || e.key === 's') plane.velocity = 3;
+    if (e.key === 'ArrowRight' || e.key === 'd') plane.boostSpeed = 2;
 });
 
 canvas.addEventListener('touchstart', (e) => {
@@ -254,8 +249,8 @@ canvas.addEventListener('touchmove', (e) => {
     joystick.y = touch.clientY - canvas.offsetTop;
     joystick.dx = joystick.x - joystick.startX;
     joystick.dy = joystick.y - joystick.startY;
-    const distance = Math.sqrt(joystick.dx * joystick.dx + joystick.dy * joystick.dy);
-    if (distance > 50) {
+    const touchDistance = Math.sqrt(joystick.dx * joystick.dx + joystick.dy * joystick.dy);
+    if (touchDistance > 50) {
         const angle = Math.atan2(joystick.dy, joystick.dx);
         joystick.x = joystick.startX + Math.cos(angle) * 50;
         joystick.y = joystick.startY + Math.sin(angle) * 50;
