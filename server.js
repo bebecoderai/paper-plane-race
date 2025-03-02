@@ -16,16 +16,16 @@ wss.on('connection', (ws) => {
     ws.on('message', (message) => {
         const data = JSON.parse(message);
         if (data.type === 'position') {
-            players[data.playerId] = { x: data.x, y: data.y };
+            players[data.playerName] = { x: data.x, y: data.y };
         } else if (data.type === 'finish') {
-            if (!finishOrder.includes(data.playerId)) {
-                finishOrder.push(data.playerId);
+            if (!finishOrder.includes(data.playerName)) {
+                finishOrder.push(data.playerName);
                 broadcastLeaderboard();
             }
         }
         wss.clients.forEach(client => {
             if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify({ type: 'position', playerId: data.playerId, x: data.x, y: data.y }));
+                client.send(JSON.stringify({ type: 'position', playerName: data.playerName, x: data.x, y: data.y }));
             }
         });
     });

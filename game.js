@@ -11,25 +11,25 @@ ws.onopen = () => console.log('Connected');
 ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
     if (data.type === 'position') {
-        otherPlanes[data.playerId] = { x: data.x, y: data.y };
+        otherPlanes[data.playerName] = { x: data.x, y: data.y };
     } else if (data.type === 'leaderboard') {
         finishOrder = data.finishOrder;
-        if (finishOrder.length > 0 && !gameOver) gameOver = true; // Show leaderboard when first player finishes
+        if (finishOrder.length > 0 && !gameOver) gameOver = true;
     }
 };
 
 let plane = {
     x: 50,
     y: 200,
-    width: 20, // Smaller hitbox for difficulty
+    width: 20,
     height: 10,
     boostSpeed: 0,
     velocity: 0,
-    gravity: 0.15, // Slightly higher gravity
-    color: playerId === '1' ? 'white' : playerId === '2' ? 'yellow' : 'pink' // Support more players
+    gravity: 0.15,
+    color: '#' + Math.floor(Math.random() * 16777215).toString(16) // Random color per player
 };
 let obstacles = [];
-let scrollSpeed = 3; // Faster scroll
+let scrollSpeed = 3;
 let distance = 0;
 const finishLine = 2000;
 
@@ -43,7 +43,7 @@ let joystick = {
     dy: 0
 };
 
-let particles = []; // Glitter effect
+let particles = [];
 
 function spawnObstacle() {
     const y = Math.random() * (canvas.height - 50);
@@ -125,8 +125,8 @@ function drawLeaderboard() {
         ctx.fillStyle = 'white';
         ctx.font = '24px Arial';
         ctx.fillText('Leaderboard', 350, 140);
-        finishOrder.forEach((id, i) => {
-            ctx.fillText(`${i + 1}. Player ${id}`, 350, 180 + i * 30);
+        finishOrder.forEach((name, i) => {
+            ctx.fillText(`${i + 1}. ${name}`, 350, 180 + i * 30);
         });
     }
 }
@@ -152,7 +152,7 @@ function update() {
         ) {
             if (!obstacle.hit) {
                 obstacle.hit = true;
-                plane.x = 50; // Respawn
+                plane.x = 50;
                 plane.y = 200;
                 plane.velocity = 0;
                 plane.boostSpeed = 0;
@@ -160,14 +160,14 @@ function update() {
         }
     });
 
-    if (distance >= finishLine && !finishOrder.includes(playerId)) {
+    if (distance >= finishLine && !finishOrder.includes(playerName)) {
         spawnParticles(plane.x, plane.y);
-        ws.send(JSON.stringify({ type: 'finish', playerId }));
+        ws.send(JSON.stringify({ type: 'finish', playerName }));
     }
 
-    if (distance % 30 === 0) spawnObstacle(); // More frequent clouds
+    if (distance % 30 === 0) spawnObstacle();
     if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'position', playerId, x: plane.x, y: plane.y }));
+        ws.send(JSON.stringify({ type: 'position', playerName, x: plane.x, y: plane.y }));
     }
 
     if (joystick.active) {
@@ -181,7 +181,7 @@ function update() {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawPlane(plane);
-    for (let id in otherPlanes) drawPlane({ x: otherPlanes[id].x, y: otherPlanes[id].y }, true);
+    for (let name in otherPlanes) drawPlane({ x: otherPlanes[name].x, y: otherPlanes[name].y }, true);
     drawObstacles();
     drawFinishLine();
     drawJoystick();
@@ -199,15 +199,9 @@ function gameLoop() {
 }
 
 document.addEventListener('keydown', (e) => {
-    if (playerId === '1') {
-        if (e.key === 'ArrowUp') plane.velocity = -3;
-        if (e.key === 'ArrowDown') plane.velocity = 3;
-        if (e.key === 'ArrowRight') plane.boostSpeed = 2;
-    } else if (playerId === '2') {
-        if (e.key === 'w') plane.velocity = -3;
-        if (e.key === 's') plane.velocity = 3;
-        if (e.key === 'd') plane.boostSpeed = 2;
-    }
+    if (e.key === 'ArrowUp' || e.key === 'w') plane.velocity = -3;
+    if (e.key === 'ArrowDown' || e.key === 's') plane.velocity = 3;
+    if (e.key === 'ArrowRight' || e.key === 'd') plane.boostSpeed = 2;
 });
 
 canvas.addEventListener('touchstart', (e) => {

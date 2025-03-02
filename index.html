@@ -7,7 +7,7 @@
     <style>
         canvas {
             border: 1px solid black;
-            background-color: #87CEEB; /* Sky blue */
+            background-color: #87CEEB;
         }
         #timer {
             font-size: 24px;
@@ -18,9 +18,9 @@
 </head>
 <body>
     <canvas id="gameCanvas" width="800" height="400"></canvas>
-    <div id="timer">Time: 30</div>
+    <div id="timer">Distance: 0</div>
     <script>
-        const playerId = prompt("Enter Player ID (1 or 2):"); // Assign player
+        const playerName = prompt("Enter your name:") || `Player${Math.floor(Math.random() * 1000)}`; // Default if blank
     </script>
     <script src="game.js"></script>
 </body>
