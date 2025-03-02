@@ -20,13 +20,24 @@ let plane = {
     velocity: 0,
     gravity: 0.1,
     color: playerId === '1' ? 'white' : 'yellow',
-    lives: 3 // Start with 3 lives
+    lives: 3
 };
 let obstacles = [];
 let scrollSpeed = 2;
 let gameOver = false;
 let distance = 0;
 const finishLine = 2000;
+
+// Joystick variables
+let joystick = {
+    active: false,
+    x: 0,
+    y: 0,
+    startX: 0,
+    startY: 0,
+    dx: 0,
+    dy: 0
+};
 
 function spawnObstacle() {
     const y = Math.random() * (canvas.height - 50);
@@ -60,6 +71,21 @@ function drawFinishLine() {
     }
 }
 
+function drawJoystick() {
+    if (joystick.active) {
+        // Base circle
+        ctx.beginPath();
+        ctx.arc(joystick.startX, joystick.startY, 50, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        ctx.fill();
+        // Stick
+        ctx.beginPath();
+        ctx.arc(joystick.x, joystick.y, 20, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fill();
+    }
+}
+
 function update() {
     if (gameOver) return;
     plane.velocity += plane.gravity;
@@ -72,7 +98,6 @@ function update() {
     obstacles.forEach(obstacle => obstacle.x -= (scrollSpeed + plane.boostSpeed));
     obstacles = obstacles.filter(obstacle => obstacle.x + obstacle.width > 0);
 
-    // Collision detection and lives
     obstacles.forEach(obstacle => {
         if (
             plane.x + plane.width > obstacle.x &&
@@ -82,8 +107,7 @@ function update() {
         ) {
             if (!obstacle.hit) {
                 obstacle.hit = true;
-                plane.lives -= 1; // Lose a life
-                console.log(`Lives left: ${plane.lives}`);
+                plane.lives -= 1;
                 if (plane.lives <= 0) {
                     gameOver = true;
                     alert('Game Over! No lives left.');
@@ -92,7 +116,6 @@ function update() {
         }
     });
 
-    // Check finish line
     if (distance >= finishLine) {
         gameOver = true;
         alert('You Win! Reached the finish line!');
@@ -102,6 +125,14 @@ function update() {
     if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ playerId, x: plane.x, y: plane.y }));
     }
+
+    // Joystick control
+    if (joystick.active) {
+        const angle = Math.atan2(joystick.dy, joystick.dx);
+        const magnitude = Math.min(Math.sqrt(joystick.dx * joystick.dx + joystick.dy * joystick.dy), 50);
+        plane.velocity = -Math.sin(angle) * (magnitude / 10); // Up/down
+        plane.boostSpeed = Math.cos(angle) * (magnitude / 25); // Forward
+    }
 }
 
 function draw() {
@@ -110,7 +141,7 @@ function draw() {
     drawPlane(otherPlane, true);
     drawObstacles();
     drawFinishLine();
-    // Display lives
+    drawJoystick();
     ctx.fillStyle = 'black';
     ctx.font = '20px Arial';
     ctx.fillText(`Lives: ${plane.lives}`, 10, 30);
@@ -122,8 +153,8 @@ function gameLoop() {
     if (!gameOver) requestAnimationFrame(gameLoop);
 }
 
+// Keyboard controls
 document.addEventListener('keydown', (e) => {
-    console.log(`Key pressed: ${e.key}`);
     if (playerId === '1') {
         if (e.key === 'ArrowUp') plane.velocity = -3;
         if (e.key === 'ArrowDown') plane.velocity = 3;
@@ -135,5 +166,7 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-spawnObstacle();
-gameLoop();
+// Touch controls (joystick)
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
