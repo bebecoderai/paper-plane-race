@@ -2,7 +2,7 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const timerDisplay = document.getElementById('timer');
 
-const ws = new WebSocket('ws://localhost:8080');
+const ws = new WebSocket('wss://paper-plane-race.onrender.com');
 let otherPlane = { x: 50, y: 200, color: playerId === '1' ? 'yellow' : 'white' };
 
 ws.onopen = () => console.log('Connected');
