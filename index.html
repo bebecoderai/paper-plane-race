@@ -3,25 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Paper Plane Race</title>
+    <title>Paper Plane Chase</title>
     <style>
         canvas {
             border: 1px solid black;
             background-color: #87CEEB;
+            width: 100%;
+            height: 100vh;
+            display: block;
         }
         #timer {
-            font-size: 24px;
-            text-align: center;
-            margin-top: 10px;
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 20px;
+            color: black;
         }
     </style>
 </head>
 <body>
-    <canvas id="gameCanvas" width="800" height="400"></canvas>
-    <div id="timer">Distance: 0</div>
-    <script>
-        const playerName = prompt("Enter your name:") || `Player${Math.floor(Math.random() * 1000)}`; // Default if blank
-    </script>
+    <canvas id="gameCanvas"></canvas>
+    <div id="timer">Time: 0</div>
     <script src="game.js"></script>
 </body>
 </html>

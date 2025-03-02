@@ -9,33 +9,24 @@ const server = app.listen(port, () => console.log(`Server running on port ${port
 
 const wss = new WebSocket.Server({ server });
 let players = {};
-let finishOrder = [];
 
 wss.on('connection', (ws) => {
     console.log('Player connected');
     ws.on('message', (message) => {
         const data = JSON.parse(message);
         if (data.type === 'position') {
-            players[data.playerName] = { x: data.x, y: data.y };
-        } else if (data.type === 'finish') {
-            if (!finishOrder.includes(data.playerName)) {
-                finishOrder.push(data.playerName);
-                broadcastLeaderboard();
-            }
+            players[data.id] = { x: data.x, y: data.y };
+            wss.clients.forEach(client => {
+                if (client !== ws && client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify({ type: 'position', id: data.id, x: data.x, y: data.y }));
+                }
+            });
         }
-        wss.clients.forEach(client => {
-            if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify({ type: 'position', playerName: data.playerName, x: data.x, y: data.y }));
-            }
-        });
     });
-    ws.on('close', () => console.log('Player disconnected'));
+    ws.on('close', () => {
+        delete players[ws.id];
+        console.log('Player disconnected');
+    });
+    ws.id = Date.now(); // Unique ID for each connection
+    ws.send(JSON.stringify({ type: 'id', id: ws.id }));
 });
-
-function broadcastLeaderboard() {
-    wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({ type: 'leaderboard', finishOrder }));
-        }
-    });
-}

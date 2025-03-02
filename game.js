@@ -2,103 +2,68 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const timerDisplay = document.getElementById('timer');
 
+// Set canvas to full screen
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
 const ws = new WebSocket(`wss://${window.location.host}`);
+let playerId;
 let otherPlanes = {};
-let finishOrder = [];
 let gameOver = false;
+let survivalTime = 0;
+let lastSpawnTime = 0;
 
 ws.onopen = () => console.log('Connected');
 ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
-    if (data.type === 'position') {
-        otherPlanes[data.playerName] = { x: data.x, y: data.y };
-    } else if (data.type === 'leaderboard') {
-        finishOrder = data.finishOrder;
-        if (finishOrder.length > 0 && !gameOver) gameOver = true;
+    if (data.type === 'id') {
+        playerId = data.id;
+    } else if (data.type === 'position') {
+        otherPlanes[data.id] = { x: data.x, y: data.y };
     }
 };
 
 let plane = {
-    x: 50,
-    y: 200,
+    x: canvas.width / 4,
+    y: canvas.height / 2,
     width: 20,
     height: 10,
-    boostSpeed: 0,
-    velocity: 0,
-    gravity: 0.1,
-    color: '#' + Math.floor(Math.random() * 16777215).toString(16),
-    lives: 3
+    velocityX: 0,
+    velocityY: 0,
+    speed: 5,
+    color: 'white'
 };
-let obstacles = [];
-let scrollSpeed = 1.5;
-let distance = 0;
-const finishLine = 2000;
-
+let pursuers = [];
 let joystick = {
     active: false,
-    x: 100,
-    y: 300,
-    startX: 100,
-    startY: 300,
+    x: 0,
+    y: 0,
+    startX: 0,
+    startY: 0,
     dx: 0,
     dy: 0
 };
 
-let particles = [];
-let rainDrops = [];
-
-function resetPlayer() {
-    plane.x = 50;
-    plane.y = 200;
-    plane.velocity = 0;
-    plane.boostSpeed = 0;
+function spawnPursuer() {
+    const colors = ['red', 'orange', 'yellow', 'green', 'blue', 'indigo', 'violet'];
+    pursuers.push({
+        x: canvas.width,
+        y: Math.random() * (canvas.height - 50) + 25,
+        width: 20,
+        height: 10,
+        speed: 2 + Math.random() * 1, // Slightly variable speed
+        color: colors[pursuers.length % colors.length]
+    });
 }
 
-function spawnObstacle() {
-    const spacing = 100;
-    // Random y-positions across full height to break corridors
-    for (let i = 0; i < 4; i++) {
-        const y = Math.random() * (canvas.height - 50 - 20) + 20; // 20 to height-50
-        obstacles.push({ x: canvas.width + Math.random() * spacing, y, width: 40, height: 30, hit: false, raining: false });
-    }
-}
-
-function drawPlane(planeData, isGhost = false) {
+function drawPlane(planeData) {
     ctx.beginPath();
     ctx.moveTo(planeData.x + planeData.width, planeData.y);
     ctx.lineTo(planeData.x, planeData.y - planeData.height / 2);
     ctx.lineTo(planeData.x, planeData.y + planeData.height / 2);
     ctx.closePath();
-    ctx.fillStyle = isGhost ? 'rgba(255, 255, 255, 0.3)' : planeData.color;
+    ctx.fillStyle = planeData.color;
     ctx.fill();
-}
-
-function drawObstacles() {
-    obstacles.forEach(obstacle => {
-        ctx.fillStyle = obstacle.hit ? 'gray' : 'white';
-        ctx.beginPath();
-        ctx.arc(obstacle.x + 10, obstacle.y + 15, 15, 0, Math.PI * 2);
-        ctx.arc(obstacle.x + 30, obstacle.y + 15, 20, 0, Math.PI * 2);
-        ctx.fill();
-        if (obstacle.raining) {
-            for (let i = 0; i < 5; i++) {
-                rainDrops.push({
-                    x: obstacle.x + Math.random() * 40,
-                    y: obstacle.y + 30,
-                    vy: 2 + Math.random() * 2,
-                    life: 20
-                });
-            }
-            obstacle.raining = false;
-        }
-    });
-}
-
-function drawFinishLine() {
-    if (distance > finishLine - canvas.width) {
-        ctx.fillStyle = 'red';
-        ctx.fillRect(finishLine - distance, 0, 10, canvas.height);
-    }
 }
 
 function drawJoystick() {
@@ -114,166 +79,90 @@ function drawJoystick() {
     }
 }
 
-function spawnParticles(x, y) {
-    for (let i = 0; i < 20; i++) {
-        particles.push({
-            x: x,
-            y: y,
-            vx: (Math.random() - 0.5) * 4,
-            vy: (Math.random() - 0.5) * 4,
-            life: 30,
-            color: `hsl(${Math.random() * 360}, 100%, 50%)`
-        });
-    }
-}
-
-function drawParticles() {
-    particles.forEach((p, i) => {
-        p.x += p.vx;
-        p.y += p.vy;
-        p.life--;
-        if (p.life <= 0) particles.splice(i, 1);
-        else {
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-            ctx.fillStyle = p.color;
-            ctx.fill();
-        }
-    });
-}
-
-function drawRainDrops() {
-    rainDrops.forEach((drop, i) => {
-        drop.y += drop.vy;
-        drop.life--;
-        if (drop.life <= 0) rainDrops.splice(i, 1);
-        else {
-            ctx.beginPath();
-            ctx.moveTo(drop.x, drop.y);
-            ctx.lineTo(drop.x, drop.y + 5);
-            ctx.strokeStyle = 'blue';
-            ctx.stroke();
-        }
-    });
-}
-
-function drawLives() {
-    for (let i = 0; i < plane.lives; i++) {
-        const x = 20 + i * 30;
-        const y = 60;
-        ctx.beginPath();
-        ctx.moveTo(x, y + 10); // Bottom point
-        ctx.quadraticCurveTo(x - 10, y - 5, x - 5, y - 10); // Left lobe
-        ctx.quadraticCurveTo(x, y - 15, x + 5, y - 10); // Top to right lobe
-        ctx.quadraticCurveTo(x + 10, y - 5, x, y + 10); // Right lobe back to bottom
-        ctx.fillStyle = 'red';
-        ctx.fill();
-    }
-}
-
-function drawLeaderboard() {
-    if (gameOver && finishOrder.length > 0) {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.fillRect(200, 100, 400, 200);
-        ctx.fillStyle = 'white';
-        ctx.font = '24px Arial';
-        ctx.fillText('Leaderboard', 350, 140);
-        finishOrder.forEach((name, i) => {
-            ctx.fillText(`${i + 1}. ${name}`, 350, 180 + i * 30);
-        });
-    }
-}
-
 function update() {
     if (gameOver) return;
-    plane.velocity += plane.gravity;
-    plane.y += plane.velocity;
+
+    survivalTime += 1 / 60; // Assuming 60 FPS
+    timerDisplay.textContent = `Time: ${Math.floor(survivalTime)}`;
+
+    // Player movement
+    plane.x += plane.velocityX;
+    plane.y += plane.velocityY;
+    if (plane.x < 0) plane.x = 0;
+    if (plane.x > canvas.width - plane.width) plane.x = canvas.width - plane.width;
     if (plane.y < 0) plane.y = 0;
     if (plane.y > canvas.height - plane.height) plane.y = canvas.height - plane.height;
-    if (plane.boostSpeed > 0) plane.boostSpeed -= 0.1;
-    if (plane.boostSpeed < 0) plane.boostSpeed = 0;
-    distance += scrollSpeed + plane.boostSpeed;
-    obstacles.forEach(obstacle => obstacle.x -= (scrollSpeed + plane.boostSpeed));
-    obstacles = obstacles.filter(obstacle => obstacle.x + obstacle.width > 0);
 
-    obstacles.forEach(obstacle => {
+    // Pursuer movement
+    pursuers.forEach(p => {
+        const dx = plane.x - p.x;
+        const dy = plane.y - p.y;
+        const angle = Math.atan2(dy, dx);
+        p.x += Math.cos(angle) * p.speed;
+        p.y += Math.sin(angle) * p.speed;
+
+        // Collision check
         if (
-            plane.x + plane.width > obstacle.x &&
-            plane.x < obstacle.x + obstacle.width &&
-            plane.y + plane.height > obstacle.y &&
-            plane.y - plane.height / 2 < obstacle.y + obstacle.height
+            plane.x + plane.width > p.x &&
+            plane.x < p.x + p.width &&
+            plane.y + plane.height > p.y &&
+            plane.y - plane.height / 2 < p.y + p.height
         ) {
-            if (!obstacle.hit) {
-                obstacle.hit = true;
-                obstacle.raining = true;
-                plane.lives -= 1;
-                if (plane.lives <= 0) {
-                    gameOver = true;
-                    alert('Game Over! No lives left.');
-                } else {
-                    resetPlayer();
-                }
-            }
+            gameOver = true;
+            alert(`Game Over! Survived for ${Math.floor(survivalTime)} seconds.`);
         }
     });
 
-    if (distance >= finishLine && !finishOrder.includes(playerName)) {
-        spawnParticles(plane.x, plane.y);
-        ws.send(JSON.stringify({ type: 'finish', playerName }));
+    // Spawn new pursuer every 30 seconds
+    if (survivalTime - lastSpawnTime >= 30) {
+        spawnPursuer();
+        lastSpawnTime = survivalTime;
     }
 
-    if (distance % 20 === 0) spawnObstacle();
-    if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'position', playerName, x: plane.x, y: plane.y }));
+    if (ws.readyState === WebSocket.OPEN && playerId) {
+        ws.send(JSON.stringify({ type: 'position', id: playerId, x: plane.x, y: plane.y }));
     }
 
     if (joystick.active) {
         const angle = Math.atan2(joystick.dy, joystick.dx);
         const magnitude = Math.min(Math.sqrt(joystick.dx * joystick.dx + joystick.dy * joystick.dy), 50);
-        plane.velocity = Math.sin(angle) * (magnitude / 10); // Down = lower, up = higher
-        plane.boostSpeed = Math.cos(angle) * (magnitude / 25);
+        plane.velocityX = Math.cos(angle) * (magnitude / 10) * plane.speed;
+        plane.velocityY = Math.sin(angle) * (magnitude / 10) * plane.speed;
+    } else {
+        plane.velocityX *= 0.9; // Friction
+        plane.velocityY *= 0.9;
     }
 }
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawPlane(plane);
-    for (let name in otherPlanes) drawPlane({ x: otherPlanes[name].x, y: otherPlanes[name].y }, true);
-    drawObstacles();
-    drawFinishLine();
+    pursuers.forEach(p => drawPlane(p));
+    for (let id in otherPlanes) if (id !== playerId) drawPlane({ x: otherPlanes[id].x, y: otherPlanes[id].y });
     drawJoystick();
-    drawParticles();
-    drawRainDrops();
-    drawLives();
-    drawLeaderboard();
-    ctx.fillStyle = 'black';
-    ctx.font = '20px Arial';
-    ctx.fillText(`Distance: ${Math.floor(distance)}`, 10, 30);
-    timerDisplay.textContent = `Distance: ${Math.floor(distance)}`;
 }
 
 function gameLoop() {
     update();
     draw();
-    if (!gameOver || finishOrder.length < Object.keys(otherPlanes).length + 1) requestAnimationFrame(gameLoop);
+    if (!gameOver) requestAnimationFrame(gameLoop);
 }
-
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowUp' || e.key === 'w') plane.velocity = -3;
-    if (e.key === 'ArrowDown' || e.key === 's') plane.velocity = 3;
-    if (e.key === 'ArrowRight' || e.key === 'd') plane.boostSpeed = 2;
-});
 
 canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
+    const touch = e.touches[0];
     joystick.active = true;
+    joystick.startX = touch.clientX;
+    joystick.startY = touch.clientY;
+    joystick.x = joystick.startX;
+    joystick.y = joystick.startY;
 });
 
 canvas.addEventListener('touchmove', (e) => {
     e.preventDefault();
     const touch = e.touches[0];
-    joystick.x = touch.clientX - canvas.offsetLeft;
-    joystick.y = touch.clientY - canvas.offsetTop;
+    joystick.x = touch.clientX;
+    joystick.y = touch.clientY;
     joystick.dx = joystick.x - joystick.startX;
     joystick.dy = joystick.y - joystick.startY;
     const touchDistance = Math.sqrt(joystick.dx * joystick.dx + joystick.dy * joystick.dy);
@@ -289,9 +178,9 @@ canvas.addEventListener('touchmove', (e) => {
 canvas.addEventListener('touchend', (e) => {
     e.preventDefault();
     joystick.active = false;
-    plane.velocity = 0;
-    plane.boostSpeed = 0;
+    plane.velocityX = 0;
+    plane.velocityY = 0;
 });
 
-spawnObstacle();
+spawnPursuer(); // Start with one pursuer
 gameLoop();
