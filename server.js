@@ -4,28 +4,38 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 8080;
 
-// Serve static files (index.html, game.js)
 app.use(express.static(path.join(__dirname)));
+const server = app.listen(port, () => console.log(`Server running on port ${port}`));
 
-// Start HTTP server
-const server = app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-});
-
-// WebSocket server
 const wss = new WebSocket.Server({ server });
 let players = {};
+let finishOrder = [];
 
 wss.on('connection', (ws) => {
     console.log('Player connected');
     ws.on('message', (message) => {
         const data = JSON.parse(message);
-        players[data.playerId] = data;
+        if (data.type === 'position') {
+            players[data.playerId] = { x: data.x, y: data.y };
+        } else if (data.type === 'finish') {
+            if (!finishOrder.includes(data.playerId)) {
+                finishOrder.push(data.playerId);
+                broadcastLeaderboard();
+            }
+        }
         wss.clients.forEach(client => {
             if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify(data));
+                client.send(JSON.stringify({ type: 'position', playerId: data.playerId, x: data.x, y: data.y }));
             }
         });
     });
     ws.on('close', () => console.log('Player disconnected'));
 });
+
+function broadcastLeaderboard() {
+    wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({ type: 'leaderboard', finishOrder }));
+        }
+    });
+}

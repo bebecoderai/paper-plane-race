@@ -3,40 +3,47 @@ const ctx = canvas.getContext('2d');
 const timerDisplay = document.getElementById('timer');
 
 const ws = new WebSocket(`wss://${window.location.host}`);
-let otherPlane = { x: 50, y: 200, color: playerId === '1' ? 'yellow' : 'white' };
+let otherPlanes = {};
+let finishOrder = [];
+let gameOver = false;
 
 ws.onopen = () => console.log('Connected');
 ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
-    if (data.playerId !== playerId) otherPlane = { x: data.x, y: data.y };
+    if (data.type === 'position') {
+        otherPlanes[data.playerId] = { x: data.x, y: data.y };
+    } else if (data.type === 'leaderboard') {
+        finishOrder = data.finishOrder;
+        if (finishOrder.length > 0 && !gameOver) gameOver = true; // Show leaderboard when first player finishes
+    }
 };
 
 let plane = {
     x: 50,
     y: 200,
-    width: 30,
-    height: 15,
+    width: 20, // Smaller hitbox for difficulty
+    height: 10,
     boostSpeed: 0,
     velocity: 0,
-    gravity: 0.1,
-    color: playerId === '1' ? 'white' : 'yellow',
-    lives: 3
+    gravity: 0.15, // Slightly higher gravity
+    color: playerId === '1' ? 'white' : playerId === '2' ? 'yellow' : 'pink' // Support more players
 };
 let obstacles = [];
-let scrollSpeed = 2;
-let gameOver = false;
+let scrollSpeed = 3; // Faster scroll
 let distance = 0;
 const finishLine = 2000;
 
 let joystick = {
     active: false,
-    x: 100, // Fixed position for testing
+    x: 100,
     y: 300,
     startX: 100,
     startY: 300,
     dx: 0,
     dy: 0
 };
+
+let particles = []; // Glitter effect
 
 function spawnObstacle() {
     const y = Math.random() * (canvas.height - 50);
@@ -83,6 +90,47 @@ function drawJoystick() {
     }
 }
 
+function spawnParticles(x, y) {
+    for (let i = 0; i < 20; i++) {
+        particles.push({
+            x: x,
+            y: y,
+            vx: (Math.random() - 0.5) * 4,
+            vy: (Math.random() - 0.5) * 4,
+            life: 30,
+            color: `hsl(${Math.random() * 360}, 100%, 50%)`
+        });
+    }
+}
+
+function drawParticles() {
+    particles.forEach((p, i) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life--;
+        if (p.life <= 0) particles.splice(i, 1);
+        else {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+            ctx.fillStyle = p.color;
+            ctx.fill();
+        }
+    });
+}
+
+function drawLeaderboard() {
+    if (gameOver && finishOrder.length > 0) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(200, 100, 400, 200);
+        ctx.fillStyle = 'white';
+        ctx.font = '24px Arial';
+        ctx.fillText('Leaderboard', 350, 140);
+        finishOrder.forEach((id, i) => {
+            ctx.fillText(`${i + 1}. Player ${id}`, 350, 180 + i * 30);
+        });
+    }
+}
+
 function update() {
     if (gameOver) return;
     plane.velocity += plane.gravity;
@@ -104,23 +152,22 @@ function update() {
         ) {
             if (!obstacle.hit) {
                 obstacle.hit = true;
-                plane.lives -= 1;
-                if (plane.lives <= 0) {
-                    gameOver = true;
-                    alert('Game Over! No lives left.');
-                }
+                plane.x = 50; // Respawn
+                plane.y = 200;
+                plane.velocity = 0;
+                plane.boostSpeed = 0;
             }
         }
     });
 
-    if (distance >= finishLine) {
-        gameOver = true;
-        alert('You Win! Reached the finish line!');
+    if (distance >= finishLine && !finishOrder.includes(playerId)) {
+        spawnParticles(plane.x, plane.y);
+        ws.send(JSON.stringify({ type: 'finish', playerId }));
     }
 
-    if (distance % 60 === 0) spawnObstacle();
+    if (distance % 30 === 0) spawnObstacle(); // More frequent clouds
     if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ playerId, x: plane.x, y: plane.y }));
+        ws.send(JSON.stringify({ type: 'position', playerId, x: plane.x, y: plane.y }));
     }
 
     if (joystick.active) {
@@ -134,19 +181,21 @@ function update() {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawPlane(plane);
-    drawPlane(otherPlane, true);
+    for (let id in otherPlanes) drawPlane({ x: otherPlanes[id].x, y: otherPlanes[id].y }, true);
     drawObstacles();
     drawFinishLine();
     drawJoystick();
+    drawParticles();
+    drawLeaderboard();
     ctx.fillStyle = 'black';
     ctx.font = '20px Arial';
-    ctx.fillText(`Lives: ${plane.lives}`, 10, 30);
+    ctx.fillText(`Distance: ${Math.floor(distance)}`, 10, 30);
 }
 
 function gameLoop() {
     update();
     draw();
-    if (!gameOver) requestAnimationFrame(gameLoop);
+    if (!gameOver || finishOrder.length < Object.keys(otherPlanes).length + 1) requestAnimationFrame(gameLoop);
 }
 
 document.addEventListener('keydown', (e) => {
@@ -161,11 +210,9 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// Touch controls with fixed position for testing
 canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
     joystick.active = true;
-    console.log('Touch started'); // Debug
 });
 
 canvas.addEventListener('touchmove', (e) => {
@@ -183,7 +230,6 @@ canvas.addEventListener('touchmove', (e) => {
         joystick.dx = joystick.x - joystick.startX;
         joystick.dy = joystick.y - joystick.startY;
     }
-    console.log('Touch moved:', joystick.x, joystick.y); // Debug
 });
 
 canvas.addEventListener('touchend', (e) => {
@@ -191,7 +237,6 @@ canvas.addEventListener('touchend', (e) => {
     joystick.active = false;
     plane.velocity = 0;
     plane.boostSpeed = 0;
-    console.log('Touch ended'); // Debug
 });
 
 spawnObstacle();
