@@ -26,7 +26,8 @@ let plane = {
     boostSpeed: 0,
     velocity: 0,
     gravity: 0.1,
-    color: '#' + Math.floor(Math.random() * 16777215).toString(16)
+    color: '#' + Math.floor(Math.random() * 16777215).toString(16),
+    lives: 3
 };
 let obstacles = [];
 let scrollSpeed = 1.5;
@@ -46,25 +47,19 @@ let joystick = {
 let particles = [];
 let rainDrops = [];
 
-function resetGame() {
+function resetPlayer() {
     plane.x = 50;
     plane.y = 200;
     plane.velocity = 0;
     plane.boostSpeed = 0;
-    distance = 0;
-    obstacles = [];
-    particles = [];
-    rainDrops = [];
-    finishOrder = [];
-    gameOver = false;
-    spawnObstacle(); // Start with fresh obstacles
 }
 
 function spawnObstacle() {
-    const spacing = 150;
-    obstacles.push({ x: canvas.width, y: 20, width: 40, height: 30, hit: false, raining: false });
-    obstacles.push({ x: canvas.width + spacing * 0.5, y: Math.random() * (canvas.height - 100 - 50) + 50, width: 40, height: 30, hit: false, raining: false });
-    obstacles.push({ x: canvas.width + spacing, y: canvas.height - 50, width: 40, height: 30, hit: false, raining: false });
+    const spacing = 100;
+    for (let i = 0; i < 4; i++) {
+        const y = i * (canvas.height - 50) / 3 + 20;
+        obstacles.push({ x: canvas.width + Math.random() * spacing, y, width: 40, height: 30, hit: false, raining: false });
+    }
 }
 
 function drawPlane(planeData, isGhost = false) {
@@ -161,6 +156,18 @@ function drawRainDrops() {
     });
 }
 
+function drawLives() {
+    for (let i = 0; i < plane.lives; i++) {
+        ctx.beginPath();
+        ctx.moveTo(20 + i * 30, 60);
+        ctx.arc(20 + i * 30 - 10, 60, 10, Math.PI, 2 * Math.PI);
+        ctx.arc(20 + i * 30 + 10, 60, 10, Math.PI, 2 * Math.PI);
+        ctx.lineTo(20 + i * 30, 80);
+        ctx.fillStyle = 'red';
+        ctx.fill();
+    }
+}
+
 function drawLeaderboard() {
     if (gameOver && finishOrder.length > 0) {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
@@ -196,8 +203,13 @@ function update() {
             if (!obstacle.hit) {
                 obstacle.hit = true;
                 obstacle.raining = true;
-                resetGame(); // Restart on hit
-                return; // Exit update to avoid multiple resets
+                plane.lives -= 1;
+                if (plane.lives <= 0) {
+                    gameOver = true;
+                    alert('Game Over! No lives left.');
+                } else {
+                    resetPlayer();
+                }
             }
         }
     });
@@ -215,8 +227,8 @@ function update() {
     if (joystick.active) {
         const angle = Math.atan2(joystick.dy, joystick.dx);
         const magnitude = Math.min(Math.sqrt(joystick.dx * joystick.dx + joystick.dy * joystick.dy), 50);
-        plane.velocity = -Math.sin(angle) * (magnitude / 10);
-        plane.boostSpeed = Math.cos(angle) * (magnitude / 25);
+        plane.velocity = Math.sin(angle) * (magnitude / 10); // Down = positive, up = negative
+        plane.boostSpeed = Math.cos(angle) * (magnitude / 25); // Right = positive
     }
 }
 
@@ -229,6 +241,7 @@ function draw() {
     drawJoystick();
     drawParticles();
     drawRainDrops();
+    drawLives();
     drawLeaderboard();
     ctx.fillStyle = 'black';
     ctx.font = '20px Arial';
