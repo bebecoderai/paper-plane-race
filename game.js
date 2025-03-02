@@ -26,11 +26,11 @@ ws.onmessage = (event) => {
 let plane = {
     x: canvas.width / 4,
     y: canvas.height / 2,
-    width: 20,
-    height: 10,
-    velocityX: 0,
-    velocityY: 0,
-    speed: 5,
+    width: canvas.width / 5, // 1/5 of screen width
+    height: canvas.height / 10, // Proportional height
+    angle: 0, // For circular motion
+    radius: 50, // Radius of circular path
+    speed: 0.05, // Angular speed
     color: 'white'
 };
 let pursuers = [];
@@ -48,33 +48,39 @@ function spawnPursuer() {
     const colors = ['red', 'orange', 'yellow', 'green', 'blue', 'indigo', 'violet'];
     pursuers.push({
         x: canvas.width,
-        y: Math.random() * (canvas.height - 50) + 25,
-        width: 20,
-        height: 10,
-        speed: 2 + Math.random() * 1, // Slightly variable speed
+        y: Math.random() * (canvas.height - canvas.height / 10) + canvas.height / 20,
+        width: canvas.width / 10, // Half player size
+        height: canvas.height / 20,
+        angle: 0,
+        radius: 40 + Math.random() * 20, // Variable radius
+        speed: 0.03 + Math.random() * 0.02, // Variable speed
         color: colors[pursuers.length % colors.length]
     });
 }
 
 function drawPlane(planeData) {
+    ctx.save();
+    ctx.translate(planeData.x, planeData.y);
+    ctx.rotate(planeData.angle);
     ctx.beginPath();
-    ctx.moveTo(planeData.x + planeData.width, planeData.y);
-    ctx.lineTo(planeData.x, planeData.y - planeData.height / 2);
-    ctx.lineTo(planeData.x, planeData.y + planeData.height / 2);
+    ctx.moveTo(planeData.width / 2, 0);
+    ctx.lineTo(-planeData.width / 2, -planeData.height / 2);
+    ctx.lineTo(-planeData.width / 2, planeData.height / 2);
     ctx.closePath();
     ctx.fillStyle = planeData.color;
     ctx.fill();
+    ctx.restore();
 }
 
 function drawJoystick() {
     if (joystick.active) {
         ctx.beginPath();
         ctx.arc(joystick.startX, joystick.startY, 50, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)'; // White on black
         ctx.fill();
         ctx.beginPath();
         ctx.arc(joystick.x, joystick.y, 20, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.fill();
     }
 }
@@ -82,63 +88,63 @@ function drawJoystick() {
 function update() {
     if (gameOver) return;
 
-    survivalTime += 1 / 60; // Assuming 60 FPS
+    survivalTime += 1 / 60;
     timerDisplay.textContent = `Time: ${Math.floor(survivalTime)}`;
 
-    // Player movement
-    plane.x += plane.velocityX;
-    plane.y += plane.velocityY;
-    if (plane.x < 0) plane.x = 0;
-    if (plane.x > canvas.width - plane.width) plane.x = canvas.width - plane.width;
-    if (plane.y < 0) plane.y = 0;
-    if (plane.y > canvas.height - plane.height) plane.y = canvas.height - plane.height;
+    // Player circular motion
+    plane.angle += plane.speed;
+    if (joystick.active) {
+        const angle = Math.atan2(joystick.dy, joystick.dx);
+        const magnitude = Math.min(Math.sqrt(joystick.dx * joystick.dx + joystick.dy * joystick.dy), 50);
+        const moveX = Math.cos(angle) * (magnitude / 10) * 5;
+        const moveY = Math.sin(angle) * (magnitude / 10) * 5;
+        plane.x += moveX;
+        plane.y += moveY;
+        plane.x = Math.max(plane.width / 2, Math.min(canvas.width - plane.width / 2, plane.x));
+        plane.y = Math.max(plane.height / 2, Math.min(canvas.height - plane.height / 2, plane.y));
+    }
+    const centerX = plane.x - Math.cos(plane.angle) * plane.radius;
+    const centerY = plane.y - Math.sin(plane.angle) * plane.radius;
 
-    // Pursuer movement
+    // Pursuer motion
     pursuers.forEach(p => {
+        p.angle += p.speed;
         const dx = plane.x - p.x;
         const dy = plane.y - p.y;
-        const angle = Math.atan2(dy, dx);
-        p.x += Math.cos(angle) * p.speed;
-        p.y += Math.sin(angle) * p.speed;
-
+        const chaseAngle = Math.atan2(dy, dx);
+        p.x += Math.cos(chaseAngle) * 2 + Math.cos(p.angle) * p.radius * 0.05; // Chase + circle
+        p.y += Math.sin(chaseAngle) * 2 + Math.sin(p.angle) * p.radius * 0.05;
+        
         // Collision check
         if (
-            plane.x + plane.width > p.x &&
-            plane.x < p.x + p.width &&
-            plane.y + plane.height > p.y &&
-            plane.y - plane.height / 2 < p.y + p.height
+            plane.x + plane.width / 2 > p.x - p.width / 2 &&
+            plane.x - plane.width / 2 < p.x + p.width / 2 &&
+            plane.y + plane.height / 2 > p.y - p.height / 2 &&
+            plane.y - plane.height / 2 < p.y + p.height / 2
         ) {
             gameOver = true;
             alert(`Game Over! Survived for ${Math.floor(survivalTime)} seconds.`);
         }
     });
 
-    // Spawn new pursuer every 30 seconds
+    // Spawn pursuer every 30 seconds
     if (survivalTime - lastSpawnTime >= 30) {
         spawnPursuer();
         lastSpawnTime = survivalTime;
     }
 
     if (ws.readyState === WebSocket.OPEN && playerId) {
-        ws.send(JSON.stringify({ type: 'position', id: playerId, x: plane.x, y: plane.y }));
-    }
-
-    if (joystick.active) {
-        const angle = Math.atan2(joystick.dy, joystick.dx);
-        const magnitude = Math.min(Math.sqrt(joystick.dx * joystick.dx + joystick.dy * joystick.dy), 50);
-        plane.velocityX = Math.cos(angle) * (magnitude / 10) * plane.speed;
-        plane.velocityY = Math.sin(angle) * (magnitude / 10) * plane.speed;
-    } else {
-        plane.velocityX *= 0.9; // Friction
-        plane.velocityY *= 0.9;
+        ws.send(JSON.stringify({ type: 'position', id: playerId, x: centerX, y: centerY }));
     }
 }
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawPlane(plane);
+    const centerX = plane.x - Math.cos(plane.angle) * plane.radius;
+    const centerY = plane.y - Math.sin(plane.angle) * plane.radius;
+    drawPlane({ x: centerX, y: centerY, width: plane.width, height: plane.height, angle: plane.angle, color: plane.color });
     pursuers.forEach(p => drawPlane(p));
-    for (let id in otherPlanes) if (id !== playerId) drawPlane({ x: otherPlanes[id].x, y: otherPlanes[id].y });
+    for (let id in otherPlanes) if (id !== playerId) drawPlane({ x: otherPlanes[id].x, y: otherPlanes[id].y, width: plane.width, height: plane.height, angle: 0, color: 'gray' });
     drawJoystick();
 }
 
@@ -178,9 +184,7 @@ canvas.addEventListener('touchmove', (e) => {
 canvas.addEventListener('touchend', (e) => {
     e.preventDefault();
     joystick.active = false;
-    plane.velocityX = 0;
-    plane.velocityY = 0;
 });
 
-spawnPursuer(); // Start with one pursuer
+spawnPursuer();
 gameLoop();
