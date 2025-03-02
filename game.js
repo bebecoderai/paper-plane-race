@@ -46,12 +46,25 @@ let joystick = {
 let particles = [];
 let rainDrops = [];
 
+function resetGame() {
+    plane.x = 50;
+    plane.y = 200;
+    plane.velocity = 0;
+    plane.boostSpeed = 0;
+    distance = 0;
+    obstacles = [];
+    particles = [];
+    rainDrops = [];
+    finishOrder = [];
+    gameOver = false;
+    spawnObstacle(); // Start with fresh obstacles
+}
+
 function spawnObstacle() {
-    // Staggered spawning for continuous challenge
-    const spacing = 150; // Distance between cloud sets
-    obstacles.push({ x: canvas.width, y: 20, width: 40, height: 30, hit: false, raining: false }); // Top
-    obstacles.push({ x: canvas.width + spacing * 0.5, y: Math.random() * (canvas.height - 100 - 50) + 50, width: 40, height: 30, hit: false, raining: false }); // Middle staggered
-    obstacles.push({ x: canvas.width + spacing, y: canvas.height - 50, width: 40, height: 30, hit: false, raining: false }); // Bottom staggered
+    const spacing = 150;
+    obstacles.push({ x: canvas.width, y: 20, width: 40, height: 30, hit: false, raining: false });
+    obstacles.push({ x: canvas.width + spacing * 0.5, y: Math.random() * (canvas.height - 100 - 50) + 50, width: 40, height: 30, hit: false, raining: false });
+    obstacles.push({ x: canvas.width + spacing, y: canvas.height - 50, width: 40, height: 30, hit: false, raining: false });
 }
 
 function drawPlane(planeData, isGhost = false) {
@@ -183,10 +196,8 @@ function update() {
             if (!obstacle.hit) {
                 obstacle.hit = true;
                 obstacle.raining = true;
-                plane.x = 50;
-                plane.y = 200;
-                plane.velocity = 0;
-                plane.boostSpeed = 0;
+                resetGame(); // Restart on hit
+                return; // Exit update to avoid multiple resets
             }
         }
     });
@@ -196,7 +207,7 @@ function update() {
         ws.send(JSON.stringify({ type: 'finish', playerName }));
     }
 
-    if (distance % 20 === 0) spawnObstacle(); // More frequent spawning
+    if (distance % 20 === 0) spawnObstacle();
     if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'position', playerName, x: plane.x, y: plane.y }));
     }
