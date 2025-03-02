@@ -25,11 +25,11 @@ let plane = {
     height: 10,
     boostSpeed: 0,
     velocity: 0,
-    gravity: 0.15,
-    color: '#' + Math.floor(Math.random() * 16777215).toString(16) // Random color per player
+    gravity: 0.1, // Reduced from 0.15
+    color: '#' + Math.floor(Math.random() * 16777215).toString(16)
 };
 let obstacles = [];
-let scrollSpeed = 3;
+let scrollSpeed = 1.5; // Reduced from 3
 let distance = 0;
 const finishLine = 2000;
 
@@ -44,10 +44,15 @@ let joystick = {
 };
 
 let particles = [];
+let rainDrops = [];
 
 function spawnObstacle() {
-    const y = Math.random() * (canvas.height - 50);
-    obstacles.push({ x: canvas.width, y: y, width: 40, height: 30, hit: false });
+    // Random middle cloud
+    obstacles.push({ x: canvas.width, y: Math.random() * (canvas.height - 50 - 50) + 50, width: 40, height: 30, hit: false, raining: false });
+    // Top edge cloud
+    obstacles.push({ x: canvas.width, y: 20, width: 40, height: 30, hit: false, raining: false });
+    // Bottom edge cloud
+    obstacles.push({ x: canvas.width, y: canvas.height - 50, width: 40, height: 30, hit: false, raining: false });
 }
 
 function drawPlane(planeData, isGhost = false) {
@@ -67,6 +72,17 @@ function drawObstacles() {
         ctx.arc(obstacle.x + 10, obstacle.y + 15, 15, 0, Math.PI * 2);
         ctx.arc(obstacle.x + 30, obstacle.y + 15, 20, 0, Math.PI * 2);
         ctx.fill();
+        if (obstacle.raining) {
+            for (let i = 0; i < 5; i++) {
+                rainDrops.push({
+                    x: obstacle.x + Math.random() * 40,
+                    y: obstacle.y + 30,
+                    vy: 2 + Math.random() * 2,
+                    life: 20
+                });
+            }
+            obstacle.raining = false; // One burst of rain
+        }
     });
 }
 
@@ -118,6 +134,21 @@ function drawParticles() {
     });
 }
 
+function drawRainDrops() {
+    rainDrops.forEach((drop, i) => {
+        drop.y += drop.vy;
+        drop.life--;
+        if (drop.life <= 0) rainDrops.splice(i, 1);
+        else {
+            ctx.beginPath();
+            ctx.moveTo(drop.x, drop.y);
+            ctx.lineTo(drop.x, drop.y + 5);
+            ctx.strokeStyle = 'blue';
+            ctx.stroke();
+        }
+    });
+}
+
 function drawLeaderboard() {
     if (gameOver && finishOrder.length > 0) {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
@@ -152,6 +183,7 @@ function update() {
         ) {
             if (!obstacle.hit) {
                 obstacle.hit = true;
+                obstacle.raining = true; // Trigger rain
                 plane.x = 50;
                 plane.y = 200;
                 plane.velocity = 0;
@@ -165,7 +197,7 @@ function update() {
         ws.send(JSON.stringify({ type: 'finish', playerName }));
     }
 
-    if (distance % 30 === 0) spawnObstacle();
+    if (distance % 40 === 0) spawnObstacle(); // Slightly less frequent than 30
     if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'position', playerName, x: plane.x, y: plane.y }));
     }
@@ -186,10 +218,12 @@ function draw() {
     drawFinishLine();
     drawJoystick();
     drawParticles();
+    drawRainDrops();
     drawLeaderboard();
     ctx.fillStyle = 'black';
     ctx.font = '20px Arial';
     ctx.fillText(`Distance: ${Math.floor(distance)}`, 10, 30);
+    timerDisplay.textContent = `Distance: ${Math.floor(distance)}`;
 }
 
 function gameLoop() {
@@ -199,9 +233,13 @@ function gameLoop() {
 }
 
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowUp' || e.key === 'w') plane.velocity = -3;
-    if (e.key === 'ArrowDown' || e.key === 's') plane.velocity = 3;
-    if (e.key === 'ArrowRight' || e.key === 'd') plane.boostSpeed = 2;
+    // Laptop arrow keys (and WASD for flexibility)
+    if (e.key === 'ArrowUp') plane.velocity = -3;
+    if (e.key === 'ArrowDown') plane.velocity = 3;
+    if (e.key === 'ArrowRight') plane.boostSpeed = 2;
+    if (e.key === 'w') plane.velocity = -3;
+    if (e.key === 's') plane.velocity = 3;
+    if (e.key === 'd') plane.boostSpeed = 2;
 });
 
 canvas.addEventListener('touchstart', (e) => {
