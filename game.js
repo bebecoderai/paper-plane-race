@@ -30,10 +30,10 @@ const finishLine = 2000;
 
 let joystick = {
     active: false,
-    x: 0,
-    y: 0,
-    startX: 0,
-    startY: 0,
+    x: 100, // Fixed position for testing
+    y: 300,
+    startX: 100,
+    startY: 300,
     dx: 0,
     dy: 0
 };
@@ -72,7 +72,6 @@ function drawFinishLine() {
 
 function drawJoystick() {
     if (joystick.active) {
-        console.log(`Joystick at: ${joystick.startX}, ${joystick.startY}`); // Debug position
         ctx.beginPath();
         ctx.arc(joystick.startX, joystick.startY, 50, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
@@ -162,16 +161,11 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// Touch controls
+// Touch controls with fixed position for testing
 canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
-    const touch = e.touches[0];
     joystick.active = true;
-    joystick.startX = touch.clientX - canvas.offsetLeft;
-    joystick.startY = touch.clientY - canvas.offsetTop;
-    joystick.x = joystick.startX;
-    joystick.y = joystick.startY;
-    console.log('Touch started:', joystick.startX, joystick.startY); // Debug
+    console.log('Touch started'); // Debug
 });
 
 canvas.addEventListener('touchmove', (e) => {
