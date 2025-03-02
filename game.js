@@ -56,8 +56,9 @@ function resetPlayer() {
 
 function spawnObstacle() {
     const spacing = 100;
+    // Random y-positions across full height to break corridors
     for (let i = 0; i < 4; i++) {
-        const y = i * (canvas.height - 50) / 3 + 20;
+        const y = Math.random() * (canvas.height - 50 - 20) + 20; // 20 to height-50
         obstacles.push({ x: canvas.width + Math.random() * spacing, y, width: 40, height: 30, hit: false, raining: false });
     }
 }
@@ -158,11 +159,13 @@ function drawRainDrops() {
 
 function drawLives() {
     for (let i = 0; i < plane.lives; i++) {
+        const x = 20 + i * 30;
+        const y = 60;
         ctx.beginPath();
-        ctx.moveTo(20 + i * 30, 60);
-        ctx.arc(20 + i * 30 - 10, 60, 10, Math.PI, 2 * Math.PI);
-        ctx.arc(20 + i * 30 + 10, 60, 10, Math.PI, 2 * Math.PI);
-        ctx.lineTo(20 + i * 30, 80);
+        ctx.moveTo(x, y + 10); // Bottom point
+        ctx.quadraticCurveTo(x - 10, y - 5, x - 5, y - 10); // Left lobe
+        ctx.quadraticCurveTo(x, y - 15, x + 5, y - 10); // Top to right lobe
+        ctx.quadraticCurveTo(x + 10, y - 5, x, y + 10); // Right lobe back to bottom
         ctx.fillStyle = 'red';
         ctx.fill();
     }
@@ -227,8 +230,8 @@ function update() {
     if (joystick.active) {
         const angle = Math.atan2(joystick.dy, joystick.dx);
         const magnitude = Math.min(Math.sqrt(joystick.dx * joystick.dx + joystick.dy * joystick.dy), 50);
-        plane.velocity = Math.sin(angle) * (magnitude / 10); // Down = positive, up = negative
-        plane.boostSpeed = Math.cos(angle) * (magnitude / 25); // Right = positive
+        plane.velocity = Math.sin(angle) * (magnitude / 10); // Down = lower, up = higher
+        plane.boostSpeed = Math.cos(angle) * (magnitude / 25);
     }
 }
 
