@@ -2,10 +2,9 @@ console.log('Game script loaded');
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const uiDisplay = document.getElementById('ui');
 
-if (!canvas || !ctx || !uiDisplay) {
-    console.error('Canvas or UI elements not found');
+if (!canvas || !ctx) {
+    console.error('Canvas or context not found');
     document.body.innerHTML = 'Error: Game failed to load. Check console.';
     throw new Error('Initialization failed');
 }
