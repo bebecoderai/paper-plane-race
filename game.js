@@ -3,6 +3,13 @@ const ctx = canvas.getContext('2d');
 const uiDisplay = document.getElementById('ui');
 const leaderboardDisplay = document.getElementById('leaderboard');
 
+if (!canvas || !ctx || !uiDisplay || !leaderboardDisplay) {
+    console.error('Canvas or UI elements not found');
+    document.body.innerHTML = 'Error: Game failed to load. Check console.';
+} else {
+    console.log('Canvas loaded successfully');
+}
+
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
@@ -11,13 +18,14 @@ let playerName = prompt("Enter your name:") || `Player${Math.floor(Math.random()
 let score = 0;
 let gameOver = false;
 
-ws.onopen = () => console.log('Connected');
+ws.onopen = () => console.log('WebSocket Connected');
 ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
     if (data.type === 'leaderboard') {
         leaderboardDisplay.innerHTML = 'Leaderboard<br>' + data.scores.map(s => `${s.name}: ${s.score}`).join('<br>');
     }
 };
+ws.onerror = (err) => console.error('WebSocket Error:', err);
 
 let plane = {
     x: canvas.width / 2,
@@ -29,8 +37,8 @@ let plane = {
 let paragliders = [];
 let missiles = [];
 let stars = [];
-let missileType = 'standard'; // 'standard' or 'america'
-let spawnRate = 1; // Increases with score
+let missileType = 'standard';
+let spawnRate = 1;
 
 function spawnParaglider() {
     paragliders.push({
@@ -38,7 +46,7 @@ function spawnParaglider() {
         y: -plane.height,
         width: plane.width,
         height: plane.height,
-        velocityY: 1 + score * 0.05, // Increases with score
+        velocityY: 1 + score * 0.05,
         color: '#' + Math.floor(Math.random() * 16777215).toString(16)
     });
 }
@@ -88,15 +96,13 @@ function update() {
 
     survivalTime += 1 / 60;
     if (Math.random() < spawnRate * 0.01) spawnParaglider();
-    spawnRate = 1 + score / 10; // More gliders with score
+    spawnRate = 1 + score / 10;
 
-    // Paragliders
     paragliders.forEach(p => {
         p.y += p.velocityY;
         if (p.y > canvas.height) paragliders.splice(paragliders.indexOf(p), 1);
     });
 
-    // Missiles
     missiles.forEach(m => {
         m.y -= 5;
         paragliders.forEach(p => {
@@ -113,19 +119,16 @@ function update() {
         if (m.y < 0) missiles.splice(missiles.indexOf(m), 1);
     });
 
-    // Stars
     stars.forEach(s => {
         s.angle += 0.1;
         s.life--;
         if (s.life <= 0) stars.splice(stars.indexOf(s), 1);
     });
 
-    // Upgrade to America at 10 points
     if (score >= 10 && missileType === 'standard') missileType = 'america';
 
     uiDisplay.textContent = `Score: ${score} | Missiles: ${missileType.charAt(0).toUpperCase() + missileType.slice(1)}`;
 
-    // Collision with plane
     paragliders.forEach(p => {
         if (
             plane.x + plane.width / 2 > p.x - p.width / 2 &&
