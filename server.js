@@ -8,25 +8,23 @@ app.use(express.static(path.join(__dirname)));
 const server = app.listen(port, () => console.log(`Server running on port ${port}`));
 
 const wss = new WebSocket.Server({ server });
-let players = {};
+let scores = [];
 
 wss.on('connection', (ws) => {
     console.log('Player connected');
+    ws.send(JSON.stringify({ type: 'leaderboard', scores }));
     ws.on('message', (message) => {
         const data = JSON.parse(message);
-        if (data.type === 'position') {
-            players[data.id] = { x: data.x, y: data.y };
+        if (data.type === 'score') {
+            scores.push({ name: data.name, score: data.score });
+            scores.sort((a, b) => b.score - a.score);
+            scores = scores.slice(0, 5); // Top 5
             wss.clients.forEach(client => {
-                if (client !== ws && client.readyState === WebSocket.OPEN) {
-                    client.send(JSON.stringify({ type: 'position', id: data.id, x: data.x, y: data.y }));
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify({ type: 'leaderboard', scores }));
                 }
             });
         }
     });
-    ws.on('close', () => {
-        delete players[ws.id];
-        console.log('Player disconnected');
-    });
-    ws.id = Date.now(); // Unique ID for each connection
-    ws.send(JSON.stringify({ type: 'id', id: ws.id }));
+    ws.on('close', () => console.log('Player disconnected'));
 });
